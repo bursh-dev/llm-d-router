@@ -11,6 +11,19 @@ plugins:
   - type: endpoint-notification-source
   - type: metrics-data-source
   - type: core-metrics-extractor
+    parameters:
+      # engineConfigs replaces an engine's spec wholesale, so the standard vLLM
+      # specs are repeated alongside customMetrics for the preemption scorer.
+      engineConfigs:
+        - name: vllm
+          queuedRequestsSpec: vllm:num_requests_waiting
+          runningRequestsSpec: vllm:num_requests_running
+          kvUsageSpec: vllm:kv_cache_usage_perc
+          loraSpec: vllm:lora_requests_info
+          cacheInfoSpec: vllm:cache_config_info
+          customMetrics:
+            - attributeKey: preemptions-total
+              metricSpec: vllm:num_preemptions_total
   - type: single-profile-handler
   - type: decode-filter
   - type: precise-prefix-cache-producer
@@ -25,6 +38,14 @@ plugins:
       prefixMatchInfoProducerName: precise-prefix-cache-producer
   - type: kv-cache-utilization-scorer
   - type: queue-scorer
+  - type: preemption-scorer
+    parameters:
+      attributeKey: preemptions-total
+      kvGate: 0.7
+      floorMin: 0.5
+      deepFloor: 0.1
+      effectDurationMs: 300
+      maxEscalations: 2
   - type: max-score-picker
 dataLayer:
   sources:
@@ -44,4 +65,6 @@ schedulingProfiles:
         weight: 1.0
       - pluginRef: queue-scorer
         weight: 1.0
+      - pluginRef: preemption-scorer
+        weight: 0.5
       - pluginRef: max-score-picker
